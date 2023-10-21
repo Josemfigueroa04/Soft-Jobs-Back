@@ -1,59 +1,103 @@
 const express = require('express');
-const app = express();
+const { Pool } = require('pg');
 const cors = require('cors');
-const {Pool} = require('pg');
-
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 
-
-app.use(cors());
+const app = express();
 app.use(express.json());
+app.use(cors());
 app.listen(3000, () => console.log('Server running on port 3000'));
 
 const pool = new Pool({
     user: 'postgres',
     host: 'localhost',
-    database: 'softjobs',
+    database: ' softjobs',
     password: '22921748',
-    port: 5432,
+    port: 5432
 });
 
 pool.connect((error) => {
     if (error) {
-        throw error;
+        console.error('Error connecting to the database:', error);
+    } else {
+        console.log('Connected to the database');
     }
-    console.log('Connected to database');
-}
-);
+});
 
-// Path: Back/index.js
-
-app.post('/post/usuarios', async (req, res) => {
+// Utilidad para verificar y decodificar el token
+const verifyToken = (token) => {
     try {
-        const {email, password, rol, lenguage} = req.body;
-        const response = await pool.query('INSERT INTO usuarios ( email, password, rol, lenguage) VALUES ($1, $2, $3, $4)', [email,password, rol, lenguage]);
-        res.json(response);
+        return jwt.verify(token, 1234);
     } catch (error) {
-        console.log(error);
+        throw new Error('Token inválido');
+    }
+};
+
+app.post('/usuarios', async (req, res) => {
+    try {
+        const { email, password, rol, lenguage } = req.body;
+        const passwordEncriptada = await bcrypt.hash(password, 10);
+        const values = [email, passwordEncriptada, rol, lenguage];
+        const consulta = 'INSERT INTO usuarios (email, password, rol, lenguage) VALUES ($1, $2, $3, $4) RETURNING *';
+        const { rows } = await pool.query(consulta, values);
+        res.json(rows[0]);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error al registrar usuario' });
     }
 });
 
-app.post('/post/login', async (req, res) => {
-    try{
-        
+app.post('/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        const values = [email];
+        const consulta = 'SELECT * FROM usuarios WHERE email = $1';
+        const { rows, rowCount } = await pool.query(consulta, values);
 
+        if (rowCount === 0) {
+            throw new Error('Credenciales inválidas');
+        }
 
-    }catch(error){
-        console.log(error);
+        const { password: passwordEncriptada } = rows[0];
+        const passwordValida = await bcrypt.compare(password, passwordEncriptada);
+
+        if (!passwordValida) {
+            throw new Error('Credenciales inválidas');
+        }
+
+        const token = jwt.sign({ email }, 1234);
+        res.json({ token });
+    } catch (error) {
+        console.error(error);
+        res.status(401).json({ error: 'Credenciales inválidas' });
     }
-
-
 });
 
+app.get('/usuarios', async (req, res) => {
+    try {
+        const token = req.headers.authorization;
 
+        if (!token) {
+            throw new Error('Token no proporcionado');
+        }
 
+        const decodedToken = verifyToken(token.replace('Bearer ', ''));
 
+        const values = [decodedToken.email];
+        const consulta = 'SELECT * FROM usuarios WHERE email = $1';
+        const { rows, rowCount } = await pool.query(consulta, values);
 
+        if (rowCount === 0) {
+            throw new Error('Usuario no encontrado');
+        }
+
+        res.json(rows[0]);
+    } catch (error) {
+        console.error(error);
+        res.status(401).json({ error: error.message });
+    }
+});
 
 
 
