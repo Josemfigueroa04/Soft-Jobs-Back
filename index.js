@@ -28,7 +28,7 @@ pool.connect((error) => {
 // Utilidad para verificar y decodificar el token
 const verifyToken = (token) => {
     try {
-        return jwt.verify(token, 1234);
+        return jwt.verify(token, 'unrKqOH3YiAHOueHkjabqhHxwQEVlw0UC7lBOAeiFl2gwymvqJRtUKY3NEXLbEP');
     } catch (error) {
         throw new Error('Token inválido');
     }
@@ -66,8 +66,10 @@ app.post('/login', async (req, res) => {
             throw new Error('Credenciales inválidas');
         }
 
-        const token = jwt.sign({ email }, 1234);
+        const token = jwt.sign({ email }, 'unrKqOH3YiAHOueHkjabqhHxwQEVlw0UC7lBOAeiFl2gwymvqJRtUKY3NEXLbEP');
         res.json({ token });
+        console.log(token);
+
     } catch (error) {
         console.error(error);
         res.status(401).json({ error: 'Credenciales inválidas' });
@@ -76,13 +78,14 @@ app.post('/login', async (req, res) => {
 
 app.get('/usuarios', async (req, res) => {
     try {
-        const token = req.headers.authorization;
+        const token = req.header("authorization");
 
         if (!token) {
             throw new Error('Token no proporcionado');
         }
 
         const decodedToken = verifyToken(token.replace('Bearer ', ''));
+        console.log(decodedToken);
 
         const values = [decodedToken.email];
         const consulta = 'SELECT * FROM usuarios WHERE email = $1';
@@ -93,6 +96,7 @@ app.get('/usuarios', async (req, res) => {
         }
 
         res.json(rows[0]);
+        
     } catch (error) {
         console.error(error);
         res.status(401).json({ error: error.message });
